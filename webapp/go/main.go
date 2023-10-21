@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "net/http/pprof"
@@ -1320,6 +1321,8 @@ func getQRCode(w http.ResponseWriter, r *http.Request) {
 	w.Write(shipping.ImgBinary)
 }
 
+var buyLock = &sync.Map{}
+
 func postBuy(w http.ResponseWriter, r *http.Request) {
 	rb := reqBuy{}
 
@@ -1341,9 +1344,36 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx := dbx.MustBegin()
+	buyLockThis_, _ := buyLock.LoadOrStore(rb.ItemID, new(sync.Mutex))
+	buyLockThis := buyLockThis_.(*sync.Mutex)
 
 	targetItem := Item{}
+	if !buyLockThis.TryLock() {
+		err = dbx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
+		if err == sql.ErrNoRows {
+			outputErrorMsg(w, http.StatusNotFound, "item not found")
+			return
+		}
+		if err != nil {
+			log.Print(err)
+
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		if targetItem.Status != ItemStatusOnSale {
+			outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
+			return
+		}
+		if targetItem.SellerID == buyer.ID {
+			outputErrorMsg(w, http.StatusForbidden, "自分の商品は買えません")
+			return
+		}
+		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
+		return
+	}
+	defer buyLockThis.Unlock()
+
+	tx := dbx.MustBegin()
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "item not found")
@@ -1357,13 +1387,11 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		tx.Rollback()
 		return
 	}
-
 	if targetItem.Status != ItemStatusOnSale {
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
 		tx.Rollback()
 		return
 	}
-
 	if targetItem.SellerID == buyer.ID {
 		outputErrorMsg(w, http.StatusForbidden, "自分の商品は買えません")
 		tx.Rollback()
