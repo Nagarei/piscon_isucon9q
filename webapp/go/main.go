@@ -1216,6 +1216,10 @@ func postItemEdit(w http.ResponseWriter, r *http.Request) {
 		outputErrorMsg(w, http.StatusForbidden, "自分の商品以外は編集できません")
 		return
 	}
+	if targetItem.Status != ItemStatusOnSale {
+		outputErrorMsg(w, http.StatusForbidden, "販売中の商品以外編集できません")
+		return
+	}
 
 	tx := dbx.MustBegin()
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", itemID)
@@ -1344,34 +1348,47 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	targetItem := Item{}
+	err = dbx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ?", rb.ItemID)
+	if err == sql.ErrNoRows {
+		outputErrorMsg(w, http.StatusNotFound, "item not found")
+		return
+	}
+	if err != nil {
+		log.Print(err)
+
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	if targetItem.Status != ItemStatusOnSale {
+		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
+		return
+	}
+	if targetItem.SellerID == buyer.ID {
+		outputErrorMsg(w, http.StatusForbidden, "自分の商品は買えません")
+		return
+	}
+
 	buyLockThis_, _ := buyLock.LoadOrStore(rb.ItemID, new(sync.Mutex))
 	buyLockThis := buyLockThis_.(*sync.Mutex)
-
-	targetItem := Item{}
 	if !buyLockThis.TryLock() {
-		err = dbx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
-		if err == sql.ErrNoRows {
-			outputErrorMsg(w, http.StatusNotFound, "item not found")
-			return
-		}
-		if err != nil {
-			log.Print(err)
-
-			outputErrorMsg(w, http.StatusInternalServerError, "db error")
-			return
-		}
-		if targetItem.Status != ItemStatusOnSale {
-			outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
-			return
-		}
-		if targetItem.SellerID == buyer.ID {
-			outputErrorMsg(w, http.StatusForbidden, "自分の商品は買えません")
-			return
-		}
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
 		return
 	}
 	defer buyLockThis.Unlock()
+
+	wg := new(errgroup.Group)
+	var pstr *APIPaymentServiceTokenRes
+	wg.Go(func() error {
+		var err_ error
+		pstr, err_ = APIPaymentToken(getPaymentServiceURL(), &APIPaymentServiceTokenReq{
+			ShopID: PaymentServiceIsucariShopID,
+			Token:  rb.Token,
+			APIKey: PaymentServiceIsucariAPIKey,
+			Price:  targetItem.Price,
+		})
+		return err_
+	})
 
 	tx := dbx.MustBegin()
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
@@ -1392,13 +1409,6 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		tx.Rollback()
 		return
 	}
-	if targetItem.SellerID == buyer.ID {
-		outputErrorMsg(w, http.StatusForbidden, "自分の商品は買えません")
-		tx.Rollback()
-		return
-	}
-
-	wg := new(errgroup.Group)
 	seller := User{}
 	err = tx.Get(&seller, "SELECT * FROM `users` WHERE `id` = ? FOR UPDATE", targetItem.SellerID)
 	if err == sql.ErrNoRows {
@@ -1422,17 +1432,6 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 			ToName:      buyer.AccountName,
 			FromAddress: seller.Address,
 			FromName:    seller.AccountName,
-		})
-		return err_
-	})
-	var pstr *APIPaymentServiceTokenRes
-	wg.Go(func() error {
-		var err_ error
-		pstr, err_ = APIPaymentToken(getPaymentServiceURL(), &APIPaymentServiceTokenReq{
-			ShopID: PaymentServiceIsucariShopID,
-			Token:  rb.Token,
-			APIKey: PaymentServiceIsucariAPIKey,
-			Price:  targetItem.Price,
 		})
 		return err_
 	})
@@ -1502,13 +1501,11 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		tx.Rollback()
 		return
 	}
-
 	if pstr.Status == "fail" {
 		outputErrorMsg(w, http.StatusBadRequest, "カードの残高が足りません")
 		tx.Rollback()
 		return
 	}
-
 	if pstr.Status != "ok" {
 		outputErrorMsg(w, http.StatusBadRequest, "想定外のエラー")
 		tx.Rollback()
