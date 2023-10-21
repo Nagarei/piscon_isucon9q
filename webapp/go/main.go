@@ -479,6 +479,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func postInitialize(w http.ResponseWriter, r *http.Request) {
+	log.Print("initialize start")
 	ri := reqInitialize{}
 
 	err := json.NewDecoder(r.Body).Decode(&ri)
@@ -524,6 +525,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Print("initialize done")
 	res := resInitialize{
 		// キャンペーン実施時には還元率の設定を返す。詳しくはマニュアルを参照のこと。
 		Campaign: 0,
