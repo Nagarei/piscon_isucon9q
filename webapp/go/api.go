@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 const (
@@ -51,6 +52,19 @@ type APIShipmentStatusReq struct {
 	ReserveID string `json:"reserve_id"`
 }
 
+var httpclient *http.Client
+
+func init() {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConnsPerHost = 300
+	t.MaxIdleConns = 0    //制限なし
+	t.MaxConnsPerHost = 0 //制限なし
+	httpclient = &http.Client{
+		Transport: t,
+		Timeout:   3 * time.Second,
+	}
+}
+
 func APIPaymentToken(paymentURL string, param *APIPaymentServiceTokenReq) (*APIPaymentServiceTokenRes, error) {
 	b, _ := json.Marshal(param)
 
@@ -62,7 +76,7 @@ func APIPaymentToken(paymentURL string, param *APIPaymentServiceTokenReq) (*APIP
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +111,7 @@ func APIShipmentCreate(shipmentURL string, param *APIShipmentCreateReq) (*APIShi
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", IsucariAPIToken)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +146,7 @@ func APIShipmentRequest(shipmentURL string, param *APIShipmentRequestReq) ([]byt
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", IsucariAPIToken)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +160,7 @@ func APIShipmentRequest(shipmentURL string, param *APIShipmentRequestReq) ([]byt
 		return nil, fmt.Errorf("status code: %d; body: %s", res.StatusCode, b)
 	}
 
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
@@ -161,7 +175,7 @@ func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShi
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", IsucariAPIToken)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclient.Do(req)
 	if err != nil {
 		return nil, err
 	}
