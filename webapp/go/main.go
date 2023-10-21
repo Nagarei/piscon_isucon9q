@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	crand "crypto/rand"
 	"crypto/sha1"
 	"database/sql"
@@ -17,11 +18,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "net/http/pprof"
 
 	"github.com/felixge/fgprof"
+	"github.com/motoki317/sc"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
@@ -92,7 +95,7 @@ type User struct {
 type UserSimple struct {
 	ID           int64  `json:"id"`
 	AccountName  string `json:"account_name"`
-	NumSellItems int    `json:"num_sell_items"`
+	NumSellItems int64  `json:"num_sell_items"`
 }
 
 type Item struct {
@@ -411,16 +414,37 @@ func getUser(r *http.Request) (user User, errCode int, errMsg string) {
 	return user, http.StatusOK, ""
 }
 
-func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err error) {
+var userSimpleCache *sc.Cache[int64, *UserSimple]
+
+func setupUserSimpleCache() (err error) {
+	userSimpleCache, err = sc.New[int64, *UserSimple](retrievePlayerHandlerResult, 300*time.Hour, 300*time.Hour)
+	return
+}
+func retrievePlayerHandlerResult(ctx context.Context, userID int64) (*UserSimple, error) {
+
 	user := User{}
-	err = sqlx.Get(q, &user, "SELECT * FROM `users` WHERE `id` = ?", userID)
+	err := dbx.Get(&user, "SELECT * FROM `users` WHERE `id` = ?", userID)
 	if err != nil {
-		return userSimple, err
+		return nil, err
 	}
+	userSimple := &UserSimple{}
 	userSimple.ID = user.ID
 	userSimple.AccountName = user.AccountName
-	userSimple.NumSellItems = user.NumSellItems
-	return userSimple, err
+	userSimple.NumSellItems = int64(user.NumSellItems)
+
+	return userSimple, nil
+}
+
+func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err error) {
+	var ptr *UserSimple
+	ptr, err = userSimpleCache.Get(context.Background(), userID)
+	if err != nil {
+		return
+	}
+	userSimple.ID = ptr.ID
+	userSimple.AccountName = ptr.AccountName
+	userSimple.NumSellItems = atomic.LoadInt64(&ptr.NumSellItems)
+	return userSimple, nil
 }
 
 var categoryCache map[int]Category
@@ -523,6 +547,13 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		"shipment_service_url",
 		ri.ShipmentServiceURL,
 	)
+	if err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	err = setupUserSimpleCache()
 	if err != nil {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
@@ -2103,6 +2134,14 @@ func postSell(w http.ResponseWriter, r *http.Request) {
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
 	}
+	ptr, err := userSimpleCache.Get(context.Background(), seller.ID)
+	if err != nil {
+		log.Print(err)
+
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	atomic.StoreInt64(&ptr.NumSellItems, int64(seller.NumSellItems+1))
 	tx.Commit()
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
