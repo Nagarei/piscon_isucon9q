@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	crand "crypto/rand"
+	"crypto/sha1"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,7 +17,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	_ "net/http/pprof"
@@ -62,7 +65,7 @@ const (
 	ItemsPerPage        = 48
 	TransactionsPerPage = 10
 
-	BcryptCost = 1
+	//BcryptCost = 1
 )
 
 var (
@@ -2253,26 +2256,22 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword(u.HashedPassword, []byte(password))
-	if err == bcrypt.ErrMismatchedHashAndPassword {
-		outputErrorMsg(w, http.StatusUnauthorized, "アカウント名かパスワードが間違えています")
-		return
-	}
-	if err != nil {
-		log.Print(err)
-
-		outputErrorMsg(w, http.StatusInternalServerError, "crypt error")
-		return
-	}
-
-	if strings.HasPrefix(password, "$2a$10$") {
-		weakHashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
+	sha1 := sha1.New()
+	io.WriteString(sha1, password)
+	weakHashedPassword := hex.EncodeToString(sha1.Sum(nil))
+	if bytes.HasPrefix(u.HashedPassword, []byte("$2a$10$")) {
+		err = bcrypt.CompareHashAndPassword(u.HashedPassword, []byte(password))
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			outputErrorMsg(w, http.StatusUnauthorized, "アカウント名かパスワードが間違えています")
+			return
+		}
 		if err != nil {
 			log.Print(err)
 
-			outputErrorMsg(w, http.StatusInternalServerError, "error")
+			outputErrorMsg(w, http.StatusInternalServerError, "crypt error")
 			return
 		}
+
 		_, err = dbx.Exec("UPDATE `users` SET `hashed_password`=? WHERE id=?",
 			weakHashedPassword,
 			u.ID,
@@ -2281,6 +2280,11 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 			log.Print(err)
 
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+	} else {
+		if weakHashedPassword != string(u.HashedPassword) {
+			outputErrorMsg(w, http.StatusUnauthorized, "アカウント名かパスワードが間違えています")
 			return
 		}
 	}
@@ -2318,17 +2322,20 @@ func postRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
-	if err != nil {
-		log.Print(err)
+	// hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
+	// if err != nil {
+	// 	log.Print(err)
 
-		outputErrorMsg(w, http.StatusInternalServerError, "error")
-		return
-	}
+	// 	outputErrorMsg(w, http.StatusInternalServerError, "error")
+	// 	return
+	// }
+	sha1 := sha1.New()
+	io.WriteString(sha1, password)
+	weakHashedPassword := hex.EncodeToString(sha1.Sum(nil))
 
 	result, err := dbx.Exec("INSERT INTO `users` (`account_name`, `hashed_password`, `address`) VALUES (?, ?, ?)",
 		accountName,
-		hashedPassword,
+		weakHashedPassword,
 		address,
 	)
 	if err != nil {
