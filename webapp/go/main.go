@@ -949,9 +949,8 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shipWG := new(errgroup.Group)
-	itemDetails := []ItemDetail{}
-	for _, item := range items {
-		itemDetails = append(itemDetails, ItemDetail{})
+	itemDetails := make([]ItemDetail, len(items))
+	for index, item := range items {
 
 		seller, err := getUserSimpleByID(tx, item.SellerID)
 		if err != nil {
@@ -966,7 +965,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		itemDetail := &itemDetails[len(itemDetails)-1]
+		itemDetail := &itemDetails[index]
 		*itemDetail = ItemDetail{
 			ID:       item.ID,
 			SellerID: item.SellerID,
