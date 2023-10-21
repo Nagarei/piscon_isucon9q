@@ -1253,7 +1253,7 @@ func postItemEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetItem, err := itemCache.Get(context.Background(), itemID)
+	targetItem_, err := itemCache.Get(context.Background(), itemID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "item not found")
 		return
@@ -1265,6 +1265,7 @@ func postItemEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	targetItem := *targetItem_
 	if targetItem.SellerID != seller.ID {
 		outputErrorMsg(w, http.StatusForbidden, "自分の商品以外は編集できません")
 		return
@@ -1402,7 +1403,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetItem, err := itemCache.Get(context.Background(), rb.ItemID)
+	targetItem_, err := itemCache.Get(context.Background(), rb.ItemID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "item not found")
 		return
@@ -1413,6 +1414,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
 	}
+	targetItem := *targetItem_
 	if targetItem.Status != ItemStatusOnSale {
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
 		return
