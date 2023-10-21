@@ -8,7 +8,7 @@ CREATE TABLE configs (
 
 CREATE TABLE IF NOT EXISTS `password_table` (
   `hashed_password` varbinary(191) PRIMARY KEY,
-  `weak_hashed_password` varbinary(191),
+  `weak_hashed_password` varbinary(191) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4;
 
 DROP TABLE IF EXISTS `users`;
