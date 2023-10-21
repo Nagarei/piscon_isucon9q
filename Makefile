@@ -1,4 +1,4 @@
-include env
+include ../env.sh
 ENV_FILE:=env.sh
 # 変数定義 ------------------------
 
