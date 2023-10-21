@@ -417,10 +417,10 @@ func getUser(r *http.Request) (user User, errCode int, errMsg string) {
 var userSimpleCache *sc.Cache[int64, *UserSimple]
 
 func setupUserSimpleCache() (err error) {
-	userSimpleCache, err = sc.New[int64, *UserSimple](retrievePlayerHandlerResult, 300*time.Hour, 300*time.Hour)
+	userSimpleCache, err = sc.New[int64, *UserSimple](retrieveUserSimpleCacheHandlerResult, 300*time.Hour, 300*time.Hour)
 	return
 }
-func retrievePlayerHandlerResult(ctx context.Context, userID int64) (*UserSimple, error) {
+func retrieveUserSimpleCacheHandlerResult(ctx context.Context, userID int64) (*UserSimple, error) {
 
 	user := User{}
 	err := dbx.Get(&user, "SELECT * FROM `users` WHERE `id` = ?", userID)
@@ -547,6 +547,13 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		"shipment_service_url",
 		ri.ShipmentServiceURL,
 	)
+	if err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	err = setupApiShipmentCache()
 	if err != nil {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")

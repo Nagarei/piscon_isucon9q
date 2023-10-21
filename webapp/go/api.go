@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -163,7 +164,13 @@ func APIShipmentRequest(shipmentURL string, param *APIShipmentRequestReq) ([]byt
 	return io.ReadAll(res.Body)
 }
 
-func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
+var apiShipmentCache *sync.Map
+
+func setupApiShipmentCache() error {
+	apiShipmentCache = &sync.Map{}
+	return nil
+}
+func implAPIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
 	b, _ := json.Marshal(param)
 
 	req, err := http.NewRequest(http.MethodGet, shipmentURL+"/status", bytes.NewBuffer(b))
@@ -196,4 +203,18 @@ func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShi
 	}
 
 	return ssr, nil
+}
+func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
+	if ptr, ok := apiShipmentCache.Load(param.ReserveID); ok {
+		return ptr.(*APIShipmentStatusRes), nil
+	}
+
+	ptr, err := implAPIShipmentStatus(shipmentURL, param)
+	if err != nil {
+		return nil, err
+	}
+	if ptr.Status == ShippingsStatusDone {
+		apiShipmentCache.Store(param.ReserveID, ptr)
+	}
+	return ptr, nil
 }
