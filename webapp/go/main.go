@@ -17,6 +17,8 @@ import (
 
 	_ "net/http/pprof"
 
+	"github.com/felixge/fgprof"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
 	"github.com/jmoiron/sqlx"
@@ -282,8 +284,10 @@ func init() {
 }
 
 func main() {
+	// http.DefaultServeMux.Handle("/debug/pprof/profile", fgprof.Handler())
+	http.DefaultServeMux.Handle("/debug/fgprof", fgprof.Handler())
 	go func() {
-		log.Fatal(http.ListenAndServe(":6060", nil))
+		http.ListenAndServe(":6060", nil)
 	}()
 	host := os.Getenv("MYSQL_HOST")
 	if host == "" {
