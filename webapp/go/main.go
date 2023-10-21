@@ -412,16 +412,37 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 	return userSimple, err
 }
 
-func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
-	if category.ParentID != 0 {
-		parentCategory, err := getCategoryByID(q, category.ParentID)
-		if err != nil {
-			return category, err
-		}
-		category.ParentCategoryName = parentCategory.CategoryName
+var categoryCache map[int]Category
+
+func makeCategoryCache() (err error) {
+	categories := []Category{}
+	err = dbx.Select(&categories, "SELECT * FROM `categories`")
+	if err != nil {
+		return err
 	}
-	return category, err
+	categoryCache = map[int]Category{}
+	for _, cat := range categories {
+		categoryCache[cat.ID] = cat
+	}
+	for _, cat := range categories {
+		if cat.ParentID != 0 {
+			cat.ParentCategoryName = categoryCache[cat.ParentID].CategoryName
+			categoryCache[cat.ID] = cat
+		}
+	}
+	return nil
+}
+func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
+	return categoryCache[categoryID], nil
+	// err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
+	// if category.ParentID != 0 {
+	// 	parentCategory, err := getCategoryByID(q, category.ParentID)
+	// 	if err != nil {
+	// 		return category, err
+	// 	}
+	// 	category.ParentCategoryName = parentCategory.CategoryName
+	// }
+	// return category, err
 }
 
 func getConfigByName(name string) (string, error) {
@@ -490,6 +511,13 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		"shipment_service_url",
 		ri.ShipmentServiceURL,
 	)
+	if err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	err = makeCategoryCache()
 	if err != nil {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
