@@ -40,7 +40,8 @@ deploy-conf: check-server-id deploy-db-conf deploy-nginx-conf deploy-service-fil
 
 # ベンチマークを走らせる直前に実行する
 .PHONY: bench
-bench: check-server-id discocat-now-status rm-logs deploy-conf build restart watch-service-log
+bench: check-server-id rm-logs deploy-conf build restart watch-service-log
+#bench: check-server-id discocat-now-status rm-logs deploy-conf build restart watch-service-log
 
 # slow queryを確認する
 .PHONY: slow-query
