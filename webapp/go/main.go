@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "net/http/pprof"
@@ -2262,6 +2263,26 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 
 		outputErrorMsg(w, http.StatusInternalServerError, "crypt error")
 		return
+	}
+
+	if strings.HasPrefix(password, "$2a$10$") {
+		weakHashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
+		if err != nil {
+			log.Print(err)
+
+			outputErrorMsg(w, http.StatusInternalServerError, "error")
+			return
+		}
+		_, err = dbx.Exec("UPDATE `users` SET `hashed_password`=? WHERE id=?",
+			weakHashedPassword,
+			u.ID,
+		)
+		if err != nil {
+			log.Print(err)
+
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
 	}
 
 	session := getSession(r)
