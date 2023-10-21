@@ -23,6 +23,7 @@ import (
 	goji "goji.io"
 	"goji.io/pat"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -947,8 +948,11 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	shipWG := new(errgroup.Group)
 	itemDetails := []ItemDetail{}
 	for _, item := range items {
+		itemDetails = append(itemDetails, ItemDetail{})
+
 		seller, err := getUserSimpleByID(tx, item.SellerID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "seller not found")
@@ -962,7 +966,8 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		itemDetail := ItemDetail{
+		itemDetail := &itemDetails[len(itemDetails)-1]
+		*itemDetail = ItemDetail{
 			ID:       item.ID,
 			SellerID: item.SellerID,
 			Seller:   &seller,
@@ -1016,22 +1021,29 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 				tx.Rollback()
 				return
 			}
-			ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
-				ReserveID: shipping.ReserveID,
-			})
-			if err != nil {
-				log.Print(err)
-				outputErrorMsg(w, http.StatusInternalServerError, "failed to request to shipment service")
-				tx.Rollback()
-				return
-			}
+			reserveID := new(string)
+			*reserveID = shipping.ReserveID
+			shipWG.Go(func() error {
+				ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+					ReserveID: *reserveID,
+				})
+				if err != nil {
+					return err
+				}
 
+				itemDetail.ShippingStatus = ssr.Status
+				return nil
+			})
 			itemDetail.TransactionEvidenceID = transactionEvidence.ID
 			itemDetail.TransactionEvidenceStatus = transactionEvidence.Status
-			itemDetail.ShippingStatus = ssr.Status
 		}
 
-		itemDetails = append(itemDetails, itemDetail)
+	}
+	if err := shipWG.Wait(); err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "failed to request to shipment service")
+		tx.Rollback()
+		return
 	}
 	tx.Commit()
 
