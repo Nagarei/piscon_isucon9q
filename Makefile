@@ -91,7 +91,7 @@ pprof-record:
 .PHONY: pprof-check
 pprof-check:
 	$(eval latest := $(shell ls -rt pprof/ | tail -n 1))
-	go tool pprof -http=localhost:8090 pprof/$(latest)
+	go tool pprof -http=localhost:8090 ~/pprof/$(latest)
 
 # DBに接続する
 .PHONY: access-db
