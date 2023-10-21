@@ -87,6 +87,14 @@ pprof-record:
 	$(eval latest := $(shell ls -rt pprof/ | tail -n 1))
 	echo "finish pprof-record\ncreated: $(latest)"
 
+# pprofで記録する
+.PHONY: fgprof-record
+fgprof-record:
+	echo "start fgprof-record"
+	go tool pprof -top http://localhost:6060/debug/fgprof
+	$(eval latest := $(shell ls -rt pprof/ | tail -n 1))
+	echo "finish fgprof-record\ncreated: $(latest)"
+
 # pprofで確認する
 .PHONY: pprof-check
 pprof-check:
