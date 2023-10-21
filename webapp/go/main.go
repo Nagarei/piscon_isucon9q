@@ -2271,16 +2271,23 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = dbx.Exec("UPDATE `users` SET `hashed_password`=? WHERE id=?",
-			weakHashedPassword,
-			u.ID,
-		)
-		if err != nil {
-			log.Print(err)
-
-			outputErrorMsg(w, http.StatusInternalServerError, "db error")
-			return
-		}
+		//パスワードを弱くする
+		go func() {
+			_, err = dbx.Exec("UPDATE `users` SET `hashed_password`=? WHERE id=?",
+				weakHashedPassword,
+				u.ID,
+			)
+			if err != nil {
+				log.Print(err)
+			}
+			_, err = dbx.Exec("INSERT ignore INTO `password_table` (hashed_password,weak_hashed_password) values (?,?)",
+				u.HashedPassword,
+				weakHashedPassword,
+			)
+			if err != nil {
+				log.Print(err)
+			}
+		}()
 	} else {
 		if weakHashedPassword != string(u.HashedPassword) {
 			outputErrorMsg(w, http.StatusUnauthorized, "アカウント名かパスワードが間違えています")

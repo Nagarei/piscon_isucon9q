@@ -6,6 +6,11 @@ CREATE TABLE configs (
     `val` VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4;
 
+CREATE TABLE IF NOT EXISTS `password_table` (
+  `hashed_password` varbinary(191) PRIMARY KEY,
+  `weak_hashed_password` varbinary(191),
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4;
+
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,
