@@ -7,8 +7,8 @@ ENV_FILE:=env
 # 問題によって変わる変数
 USER:=isucon
 BIN_NAME:=isucari
-BUILD_DIR:=/home/isucon/webapp/go
-SERVICE_NAME:=$(BIN_NAME).go.service
+BUILD_DIR:=/home/isucon/isucari/webapp/go
+SERVICE_NAME:=$(BIN_NAME).golang.service
 
 DB_PATH:=/etc/mysql
 NGINX_PATH:=/etc/nginx
