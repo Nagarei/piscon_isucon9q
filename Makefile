@@ -43,6 +43,12 @@ deploy-conf: check-server-id deploy-db-conf deploy-nginx-conf deploy-service-fil
 bench: check-server-id rm-logs deploy-conf build restart watch-service-log
 #bench: check-server-id discocat-now-status rm-logs deploy-conf build restart watch-service-log
 
+
+MYSQL=mysql -h$(MYSQL_HOST) -P$(MYSQL_PORT) -u$(MYSQL_USER) -p$(MYSQL_PASS) $(MYSQL_DBNAME)
+.PHONY: mysql
+mysql:
+	$(MYSQL)
+
 # slow queryを確認する
 .PHONY: slow-query
 slow-query:
