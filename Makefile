@@ -1,5 +1,5 @@
 include env
-ENV_FILE:=env
+ENV_FILE:=env.sh
 # 変数定義 ------------------------
 
 # SERVER_ID: ENV_FILE内で定義
