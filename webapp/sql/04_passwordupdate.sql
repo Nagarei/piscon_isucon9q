@@ -7,3 +7,5 @@ UPDATE `items`
   JOIN `categories` ON `items`.`category_id` = `categories`.`id`
   SET    `items`.`parent_category_id` = `categories`.`parent_id`;
 ALTER TABLE items ADD INDEX idx_pcid_createdat_id (`parent_category_id`, `created_at`, `id`);
+
+set global slow_query_log = ON;
