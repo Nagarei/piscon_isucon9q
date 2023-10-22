@@ -256,7 +256,7 @@ func implAPIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*AP
 	return ssr, nil
 }
 func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
-	initCache := &APIShipmentStatusCache{}
+	initCache := &APIShipmentStatusCache{StatusIdx: 0}
 	if ptr, ok := apiShipmentCache.LoadOrStore(param.ReserveID, initCache); ok {
 		cache := ptr.(*APIShipmentStatusCache)
 		return &APIShipmentStatusRes{
