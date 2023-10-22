@@ -215,7 +215,7 @@ func implCacheUpdate(cache *APIShipmentStatusCache, res *APIShipmentStatusRes) {
 }
 func setupApiShipmentCacheUpdate(shipmentURL string, reserveID string, cache *APIShipmentStatusCache) {
 	done := shipmentCacheDone
-	ticker := time.NewTicker(600 * time.Millisecond)
+	ticker := time.NewTicker(400 * time.Millisecond)
 	for atomic.LoadInt32(&cache.StatusIdx) != 3 { //!= DONE
 		select {
 		case <-done:
