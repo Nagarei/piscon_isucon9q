@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -48,6 +49,10 @@ type APIShipmentStatusRes struct {
 	Status      string `json:"status"`
 	ReserveTime int64  `json:"reserve_time"`
 }
+type APIShipmentStatusCache struct {
+	StatusIdx   int32
+	ReserveTime int64
+}
 
 type APIShipmentStatusReq struct {
 	ReserveID string `json:"reserve_id"`
@@ -57,7 +62,7 @@ var httpclient *http.Client
 
 func init() {
 	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.MaxIdleConnsPerHost = 300
+	t.MaxIdleConnsPerHost = 1000
 	t.MaxIdleConns = 0    //制限なし
 	t.MaxConnsPerHost = 0 //制限なし
 	httpclient = &http.Client{
@@ -100,6 +105,19 @@ func APIPaymentToken(paymentURL string, param *APIPaymentServiceTokenReq) (*APIP
 	return pstr, nil
 }
 
+var apiShipmentCache *sync.Map
+
+var statusString = [4]string{
+	ShippingsStatusInitial,
+	ShippingsStatusWaitPickup,
+	ShippingsStatusShipping,
+	ShippingsStatusDone,
+}
+
+func setupApiShipmentCache() error {
+	apiShipmentCache = &sync.Map{}
+	return nil
+}
 func APIShipmentCreate(shipmentURL string, param *APIShipmentCreateReq) (*APIShipmentCreateRes, error) {
 	b, _ := json.Marshal(param)
 
@@ -119,7 +137,7 @@ func APIShipmentCreate(shipmentURL string, param *APIShipmentCreateReq) (*APIShi
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		b, err := ioutil.ReadAll(res.Body)
+		b, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read res.Body and the status code of the response from shipment service was not 200: %v", err)
 		}
@@ -131,6 +149,10 @@ func APIShipmentCreate(shipmentURL string, param *APIShipmentCreateReq) (*APIShi
 	if err != nil {
 		return nil, err
 	}
+	apiShipmentCache.Store(scr.ReserveID, &APIShipmentStatusCache{
+		StatusIdx:   0, //initial
+		ReserveTime: scr.ReserveTime,
+	})
 
 	return scr, nil
 }
@@ -154,21 +176,50 @@ func APIShipmentRequest(shipmentURL string, param *APIShipmentRequestReq) ([]byt
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		b, err := ioutil.ReadAll(res.Body)
+		b, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read res.Body and the status code of the response from shipment service was not 200: %v", err)
 		}
 		return nil, fmt.Errorf("status code: %d; body: %s", res.StatusCode, b)
 	}
+	cache_, ok := apiShipmentCache.Load(param.ReserveID)
+	if !ok {
+		return nil, fmt.Errorf("apiShipmentCache error")
+	}
+	cache := cache_.(*APIShipmentStatusCache)
+	atomic.StoreInt32(&cache.StatusIdx, 1) //wait_pickup
+	go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, cache)
 
 	return io.ReadAll(res.Body)
 }
 
-var apiShipmentCache *sync.Map
-
-func setupApiShipmentCache() error {
-	apiShipmentCache = &sync.Map{}
-	return nil
+func implCacheUpdate(cache *APIShipmentStatusCache, res *APIShipmentStatusRes) {
+	var idx int32
+	switch res.Status {
+	case ShippingsStatusInitial:
+		idx = 0
+	case ShippingsStatusWaitPickup:
+		idx = 1
+	case ShippingsStatusShipping:
+		idx = 2
+	case ShippingsStatusDone:
+		idx = 3
+	}
+	atomic.StoreInt32(&cache.StatusIdx, idx)
+	atomic.StoreInt64(&cache.ReserveTime, res.ReserveTime)
+}
+func setupApiShipmentCacheUpdate(shipmentURL string, reserveID string, cache *APIShipmentStatusCache) {
+	ticker := time.NewTicker(350 * time.Millisecond)
+	for atomic.LoadInt32(&cache.StatusIdx) != 3 { //!= DONE
+		<-ticker.C
+		go func() {
+			res, err := implAPIShipmentStatus(shipmentURL, &APIShipmentStatusReq{ReserveID: reserveID})
+			if err != nil {
+				return
+			}
+			implCacheUpdate(cache, res)
+		}()
+	}
 }
 func implAPIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
 	b, _ := json.Marshal(param)
@@ -205,16 +256,22 @@ func implAPIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*AP
 	return ssr, nil
 }
 func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
-	if ptr, ok := apiShipmentCache.Load(param.ReserveID); ok {
-		return ptr.(*APIShipmentStatusRes), nil
+	initCache := &APIShipmentStatusCache{}
+	if ptr, ok := apiShipmentCache.LoadOrStore(param.ReserveID, initCache); ok {
+		cache := ptr.(*APIShipmentStatusCache)
+		return &APIShipmentStatusRes{
+			Status:      statusString[atomic.LoadInt32(&cache.StatusIdx)],
+			ReserveTime: atomic.LoadInt64(&cache.ReserveTime),
+		}, nil
 	}
 
-	ptr, err := implAPIShipmentStatus(shipmentURL, param)
+	res, err := implAPIShipmentStatus(shipmentURL, param)
 	if err != nil {
 		return nil, err
 	}
-	if ptr.Status == ShippingsStatusDone {
-		apiShipmentCache.Store(param.ReserveID, ptr)
+	implCacheUpdate(initCache, res)
+	if res.Status != ShippingsStatusDone {
+		go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, initCache)
 	}
-	return ptr, nil
+	return res, nil
 }

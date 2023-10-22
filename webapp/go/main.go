@@ -1047,8 +1047,12 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			tx.Rollback()
 			return
 		}
+		itemDetail.TransactionEvidenceID = transactionEvidence.ID
+		itemDetail.TransactionEvidenceStatus = transactionEvidence.Status
 
-		if transactionEvidence.ID > 0 {
+		if item.Status == ItemStatusSoldOut {
+			itemDetail.ShippingStatus = ShippingsStatusDone
+		} else if transactionEvidence.ID > 0 {
 			shipping := Shipping{}
 			err = tx.Get(&shipping, "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?", transactionEvidence.ID)
 			if err == sql.ErrNoRows {
@@ -1075,8 +1079,6 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 				itemDetail.ShippingStatus = ssr.Status
 				return nil
 			})
-			itemDetail.TransactionEvidenceID = transactionEvidence.ID
-			itemDetail.TransactionEvidenceStatus = transactionEvidence.Status
 		}
 
 	}
