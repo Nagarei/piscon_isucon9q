@@ -1101,7 +1101,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		HasNext: hasNext,
 	}
 
-	time.Sleep(10 * time.Millisecond)
+	//time.Sleep(10 * time.Millisecond)
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(rts)
 
@@ -1821,9 +1821,9 @@ func postShipDone(w http.ResponseWriter, r *http.Request) {
 
 	// time.Sleep(650 * time.Millisecond)
 	// ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
-	ssr, err := implAPIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+	ssr, err := APIShipmentStatusExpect(getShipmentServiceURL(), &APIShipmentStatusReq{
 		ReserveID: shipping.ReserveID,
-	})
+	}, 2)
 	if err != nil {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "failed to request to shipment service")
@@ -1963,9 +1963,9 @@ func postComplete(w http.ResponseWriter, r *http.Request) {
 
 	// time.Sleep(650 * time.Millisecond)
 	// ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
-	ssr, err := implAPIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+	ssr, err := APIShipmentStatusExpect(getShipmentServiceURL(), &APIShipmentStatusReq{
 		ReserveID: shipping.ReserveID,
-	})
+	}, 3)
 	if err != nil {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "failed to request to shipment service")

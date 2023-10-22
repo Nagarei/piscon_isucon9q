@@ -271,6 +271,18 @@ func implAPIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*AP
 
 	return ssr, nil
 }
+func APIShipmentStatusExpect(shipmentURL string, param *APIShipmentStatusReq, expectStatusIdx int32) (*APIShipmentStatusRes, error) {
+	if cache_, ok := apiShipmentCache.Load(param.ReserveID); ok {
+		cache := cache_.(*APIShipmentStatusCache)
+		if expectStatusIdx <= atomic.LoadInt32(&cache.StatusIdx) {
+			return &APIShipmentStatusRes{
+				Status:      statusString[atomic.LoadInt32(&cache.StatusIdx)],
+				ReserveTime: atomic.LoadInt64(&cache.ReserveTime),
+			}, nil
+		}
+	}
+	return implAPIShipmentStatus(shipmentURL, param)
+}
 func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
 	initCache := &APIShipmentStatusCache{StatusIdx: -1}
 	if ptr, ok := apiShipmentCache.LoadOrStore(param.ReserveID, initCache); ok {
