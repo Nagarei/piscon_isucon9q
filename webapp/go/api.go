@@ -106,6 +106,7 @@ func APIPaymentToken(paymentURL string, param *APIPaymentServiceTokenReq) (*APIP
 }
 
 var apiShipmentCache *sync.Map
+var shipmentCacheDone chan interface{}
 
 var statusString = [4]string{
 	ShippingsStatusInitial,
@@ -116,6 +117,10 @@ var statusString = [4]string{
 
 func setupApiShipmentCache() error {
 	apiShipmentCache = &sync.Map{}
+	if shipmentCacheDone != nil {
+		close(shipmentCacheDone)
+	}
+	shipmentCacheDone = make(chan interface{})
 	return nil
 }
 func APIShipmentCreate(shipmentURL string, param *APIShipmentCreateReq) (*APIShipmentCreateRes, error) {
@@ -211,7 +216,11 @@ func implCacheUpdate(cache *APIShipmentStatusCache, res *APIShipmentStatusRes) {
 func setupApiShipmentCacheUpdate(shipmentURL string, reserveID string, cache *APIShipmentStatusCache) {
 	ticker := time.NewTicker(350 * time.Millisecond)
 	for atomic.LoadInt32(&cache.StatusIdx) != 3 { //!= DONE
-		<-ticker.C
+		select {
+		case <-shipmentCacheDone:
+			return
+		case <-ticker.C:
+		}
 		go func() {
 			res, err := implAPIShipmentStatus(shipmentURL, &APIShipmentStatusReq{ReserveID: reserveID})
 			if err != nil {
