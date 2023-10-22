@@ -203,8 +203,10 @@ deploy-envsh:
 
 .PHONY: build
 build:
+ifeq ($(SERVER_ID),s1)
 	cd $(BUILD_DIR); \
 	go build -o $(BIN_NAME)
+endif
 
 .PHONY: restart
 restart:
