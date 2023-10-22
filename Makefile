@@ -213,7 +213,7 @@ restart:
 	sudo systemctl daemon-reload
 ifeq ($(SERVER_ID),s1)
 	sudo systemctl restart $(SERVICE_NAME)
-	sudo systemctl restart nginx
+#	sudo systemctl restart nginx
 else
 	sudo systemctl restart mysql
 endif

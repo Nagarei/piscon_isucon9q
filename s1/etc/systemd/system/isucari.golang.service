@@ -4,13 +4,13 @@ Description = isucon9 qualifier main application in golang
 [Service]
 WorkingDirectory=/home/isucon/isucari/webapp/go/
 EnvironmentFile=/home/isucon/env.sh
-
+LimitNOFILE=1006500
 ExecStart = /home/isucon/isucari/webapp/go/isucari
 
 Restart   = always
 Type      = simple
-User      = isucon
-Group     = isucon
+User      = root
+Group     = root
 
 [Install]
 WantedBy = multi-user.target
