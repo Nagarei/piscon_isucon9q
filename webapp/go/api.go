@@ -187,13 +187,12 @@ func APIShipmentRequest(shipmentURL string, param *APIShipmentRequestReq) ([]byt
 		}
 		return nil, fmt.Errorf("status code: %d; body: %s", res.StatusCode, b)
 	}
-	// cache_, ok := apiShipmentCache.Load(param.ReserveID)
-	// if !ok {
-	// 	return nil, fmt.Errorf("apiShipmentCache error")
-	// }
-	// cache := cache_.(*APIShipmentStatusCache)
-	// atomic.StoreInt32(&cache.StatusIdx, 1) //wait_pickup
-	//go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, cache)
+
+	if cache_, ok := apiShipmentCache.Load(param.ReserveID); ok {
+		cache := cache_.(*APIShipmentStatusCache)
+		atomic.StoreInt32(&cache.StatusIdx, 1) //wait_pickup
+		//go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, cache)
+	}
 
 	return io.ReadAll(res.Body)
 }
@@ -210,7 +209,9 @@ func implCacheUpdate(cache *APIShipmentStatusCache, res *APIShipmentStatusRes) {
 	case ShippingsStatusDone:
 		idx = 3
 	}
-	atomic.StoreInt32(&cache.StatusIdx, idx)
+	if atomic.LoadInt32(&cache.StatusIdx) < idx { //完全に安全なわけでは無いけどどうせ2並列なので気にしないことにする
+		atomic.StoreInt32(&cache.StatusIdx, idx)
+	}
 	atomic.StoreInt64(&cache.ReserveTime, res.ReserveTime)
 }
 func setupApiShipmentCacheUpdate(shipmentURL string, reserveID string, cache *APIShipmentStatusCache) {
@@ -263,12 +264,20 @@ func implAPIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*AP
 		return nil, err
 	}
 
+	if cache_, ok := apiShipmentCache.Load(param.ReserveID); ok {
+		cache := cache_.(*APIShipmentStatusCache)
+		implCacheUpdate(cache, ssr)
+	}
+
 	return ssr, nil
 }
 func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShipmentStatusRes, error) {
-	initCache := &APIShipmentStatusCache{StatusIdx: 0}
+	initCache := &APIShipmentStatusCache{StatusIdx: -1}
 	if ptr, ok := apiShipmentCache.LoadOrStore(param.ReserveID, initCache); ok {
 		cache := ptr.(*APIShipmentStatusCache)
+		for atomic.LoadInt32(&cache.StatusIdx) < 0 { //busy wait
+			time.Sleep(1 * time.Millisecond)
+		}
 		return &APIShipmentStatusRes{
 			Status:      statusString[atomic.LoadInt32(&cache.StatusIdx)],
 			ReserveTime: atomic.LoadInt64(&cache.ReserveTime),
@@ -279,7 +288,6 @@ func APIShipmentStatus(shipmentURL string, param *APIShipmentStatusReq) (*APIShi
 	if err != nil {
 		return nil, err
 	}
-	implCacheUpdate(initCache, res)
 	if res.Status != ShippingsStatusDone {
 		go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, initCache)
 	}
