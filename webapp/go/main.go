@@ -1819,8 +1819,9 @@ func postShipDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	time.Sleep(650 * time.Millisecond)
-	ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+	// time.Sleep(650 * time.Millisecond)
+	// ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+	ssr, err := implAPIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
 		ReserveID: shipping.ReserveID,
 	})
 	if err != nil {
@@ -1960,8 +1961,9 @@ func postComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	time.Sleep(650 * time.Millisecond)
-	ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+	// time.Sleep(650 * time.Millisecond)
+	// ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+	ssr, err := implAPIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
 		ReserveID: shipping.ReserveID,
 	})
 	if err != nil {

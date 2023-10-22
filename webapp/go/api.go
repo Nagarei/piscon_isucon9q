@@ -154,10 +154,10 @@ func APIShipmentCreate(shipmentURL string, param *APIShipmentCreateReq) (*APIShi
 	if err != nil {
 		return nil, err
 	}
-	apiShipmentCache.Store(scr.ReserveID, &APIShipmentStatusCache{
-		StatusIdx:   0, //initial
-		ReserveTime: scr.ReserveTime,
-	})
+	// apiShipmentCache.Store(scr.ReserveID, &APIShipmentStatusCache{
+	// 	StatusIdx:   0, //initial
+	// 	ReserveTime: scr.ReserveTime,
+	// })
 
 	return scr, nil
 }
@@ -187,13 +187,13 @@ func APIShipmentRequest(shipmentURL string, param *APIShipmentRequestReq) ([]byt
 		}
 		return nil, fmt.Errorf("status code: %d; body: %s", res.StatusCode, b)
 	}
-	cache_, ok := apiShipmentCache.Load(param.ReserveID)
-	if !ok {
-		return nil, fmt.Errorf("apiShipmentCache error")
-	}
-	cache := cache_.(*APIShipmentStatusCache)
-	atomic.StoreInt32(&cache.StatusIdx, 1) //wait_pickup
-	go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, cache)
+	// cache_, ok := apiShipmentCache.Load(param.ReserveID)
+	// if !ok {
+	// 	return nil, fmt.Errorf("apiShipmentCache error")
+	// }
+	// cache := cache_.(*APIShipmentStatusCache)
+	// atomic.StoreInt32(&cache.StatusIdx, 1) //wait_pickup
+	//go setupApiShipmentCacheUpdate(shipmentURL, param.ReserveID, cache)
 
 	return io.ReadAll(res.Body)
 }
@@ -214,10 +214,11 @@ func implCacheUpdate(cache *APIShipmentStatusCache, res *APIShipmentStatusRes) {
 	atomic.StoreInt64(&cache.ReserveTime, res.ReserveTime)
 }
 func setupApiShipmentCacheUpdate(shipmentURL string, reserveID string, cache *APIShipmentStatusCache) {
+	done := shipmentCacheDone
 	ticker := time.NewTicker(600 * time.Millisecond)
 	for atomic.LoadInt32(&cache.StatusIdx) != 3 { //!= DONE
 		select {
-		case <-shipmentCacheDone:
+		case <-done:
 			return
 		case <-ticker.C:
 		}
