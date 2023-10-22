@@ -37,7 +37,8 @@ CREATE TABLE `items` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_createdat_id (`created_at`, `id`),
-  INDEX idx_pcid_createdat_id (`parent_category_id`, `created_at`, `id`),
+  INDEX idx_status_createdat_id (`status`, `created_at`, `id`),
+  INDEX idx_status_pcid_createdat_id (`status`, `parent_category_id`, `created_at`, `id`),
   INDEX sellerid_createdat_id (`seller_id`, `created_at`, `id`),
   INDEX buyerid_createdat_id (`buyer_id`, `created_at`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4;
