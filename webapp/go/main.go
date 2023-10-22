@@ -338,6 +338,7 @@ func main() {
 	defer dbx.Close()
 	dbx.SetMaxIdleConns(400)
 	dbx.SetMaxOpenConns(500)
+	initializeCache()
 
 	mux := goji.NewMux()
 
@@ -514,6 +515,26 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 	templates.ExecuteTemplate(w, "index.html", struct{}{})
 }
 
+func initializeCache() error {
+	err := setupApiShipmentCache()
+	if err != nil {
+		return err
+	}
+	err = setupUserSimpleCache()
+	if err != nil {
+		return err
+	}
+	err = makeCategoryCache()
+	if err != nil {
+		return err
+	}
+	err = setupItemCache()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func postInitialize(w http.ResponseWriter, r *http.Request) {
 	log.Print("initialize start")
 	ri := reqInitialize{}
@@ -554,31 +575,10 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = setupApiShipmentCache()
+	err = initializeCache()
 	if err != nil {
 		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	err = setupUserSimpleCache()
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	err = makeCategoryCache()
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	err = setupItemCache()
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		outputErrorMsg(w, http.StatusInternalServerError, "cache error")
 		return
 	}
 
