@@ -1101,6 +1101,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		HasNext: hasNext,
 	}
 
+	time.Sleep(10 * time.Millisecond)
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(rts)
 
@@ -1818,7 +1819,7 @@ func postShipDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	time.Sleep(550 * time.Millisecond)
+	time.Sleep(650 * time.Millisecond)
 	ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
 		ReserveID: shipping.ReserveID,
 	})
@@ -1959,7 +1960,7 @@ func postComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	time.Sleep(550 * time.Millisecond)
+	time.Sleep(650 * time.Millisecond)
 	ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
 		ReserveID: shipping.ReserveID,
 	})
