@@ -217,6 +217,7 @@ ifeq ($(SERVER_ID),s1)
 else
 	sudo systemctl restart mysql
 endif
+	echo "restart done"
 
 .PHONY: mv-logs
 mv-logs:
