@@ -4,4 +4,4 @@ MYSQL_USER=isucari
 MYSQL_DBNAME=isucari
 MYSQL_PASS=isucari
 
-SERVER_ID=s1
+SERVER_ID=s2
